@@ -40,8 +40,7 @@ func StartSingleJoyconMode() {
 		return
 	}
 
-	go SingleJoyconHandler(ctx, inputCh)
-	<-ctx.Done()
+	SingleJoyconHandler(ctx, inputCh)
 
 	fmt.Println("\nShutting down...")
 	adapterManger.Shutdown()
@@ -70,7 +69,7 @@ func StartDualJoyconMode() {
 	}
 
 	leftInputCh := make(chan InputData, 1)
-	rightInputCh := make(chan InputData, 2)
+	rightInputCh := make(chan InputData, 1)
 
 	session1 := CreateJoyconSession(candidates[0], 1, leftInputCh)
 	session2 := CreateJoyconSession(candidates[1], 2, rightInputCh)
@@ -87,13 +86,12 @@ func StartDualJoyconMode() {
 
 	err = adapterManger.ConnectSession(session2)
 	if err != nil {
-		fmt.Printf("Failed to connect to Joy-Con at %s: %v\n", candidates[0].AddressString, err)
+		fmt.Printf("Failed to connect to Joy-Con at %s: %v\n", candidates[1].AddressString, err)
 		adapterManger.Shutdown()
 		return
 	}
 
-	go DualJoyconHandler(ctx, leftInputCh, rightInputCh)
-	<-ctx.Done()
+	DualJoyconHandler(ctx, leftInputCh, rightInputCh)
 
 	fmt.Println("\nShutting down...")
 	adapterManger.Shutdown()

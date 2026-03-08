@@ -53,6 +53,7 @@ func (session *JoyconSession) Device() bluetooth.Device {
 	session.mu.Lock()
 	defer session.mu.Unlock()
 	return session.device
+
 }
 
 func (session *JoyconSession) Address() bluetooth.Address {
@@ -310,10 +311,11 @@ func (session *JoyconSession) StartInputNotification(outCh chan<- InputData) err
 			if len(buf) == 0 {
 				return
 			}
+			payload := append([]byte(nil), buf...)
 			select {
 			case outCh <- InputData{
 				playerNo: session.playerNo,
-				data:     buf,
+				data:     payload,
 			}:
 			default:
 			}

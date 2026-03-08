@@ -20,6 +20,7 @@ type JoyconCandidate struct {
 	Device        bluetooth.Device
 	Address       bluetooth.Address
 	AddressString string
+	Name          string
 }
 
 func (am *AdapterManager) ScanJoycons() ([]JoyconCandidate, error) {
@@ -115,7 +116,6 @@ func (am *AdapterManager) onAdapterScan(result bluetooth.ScanResult) error {
 			return nil
 		}
 	}
-
 	addr := result.Address.String()
 
 	if _, exists := am.seenDevices[addr]; exists {
@@ -129,10 +129,12 @@ func (am *AdapterManager) onAdapterScan(result bluetooth.ScanResult) error {
 	am.candidates = append(am.candidates, JoyconCandidate{
 		Address:       result.Address,
 		AddressString: addr,
+		Name:          result.LocalName(),
 	})
 
 	fmt.Printf("Possible Joy-Con 2 found #%d\n", len(am.candidates))
 	fmt.Printf("  Address: %s\n", addr)
+	fmt.Printf("  Name: %s\n", result.LocalName())
 
 	return nil
 }
