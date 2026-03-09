@@ -8,6 +8,8 @@ require (
 	tinygo.org/x/bluetooth v0.14.0
 )
 
+replace tinygo.org/x/bluetooth => github.com/khk4912/bluetooth v0.0.0-20260308134947-a199022fe9d2
+
 require (
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
 	github.com/charmbracelet/colorprofile v0.2.3-0.20250311203215-f60798e515dc // indirect
@@ -34,5 +36,5 @@ require (
 	github.com/xo/terminfo v0.0.0-20220910002029-abceb7e1c41e // indirect
 	golang.org/x/exp v0.0.0-20241204233417-43b7b7cde48d // indirect
 	golang.org/x/sys v0.36.0 // indirect
-	golang.org/x/text v0.3.8 // indirect
+	golang.org/x/text v0.17.0 // indirect
 )
