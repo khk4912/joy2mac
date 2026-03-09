@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/hex"
 	"fmt"
+	"sort"
 	"strings"
 	"time"
 
@@ -14,13 +15,13 @@ import (
 type joyconInputSource struct {
 	name    string
 	title   string
-	inputCh <-chan InputData
+	stateCh <-chan JoyconState
 	side    JoyconSide
 }
 
 type joyconPacketMsg struct {
 	source string
-	data   InputData
+	state  JoyconState
 	at     time.Time
 }
 
@@ -41,12 +42,10 @@ const (
 type joyconCardState struct {
 	title       string
 	playerNo    int
-	packetCount int
-	payloadSize int
-	lastPacket  []byte
 	lastUpdated time.Time
 	closed      bool
 	side        JoyconSide
+	state       JoyconState
 }
 
 type joyconViewerModel struct {
@@ -90,13 +89,11 @@ func (m joyconViewerModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.height = msg.Height
 	case joyconPacketMsg:
 		state := m.sources[msg.source]
-		state.playerNo = msg.data.PlayerNo
-		if msg.data.Side != UnknownSide {
-			state.side = msg.data.Side
+		state.playerNo = msg.state.PlayerNo
+		if msg.state.Side != UnknownSide {
+			state.side = msg.state.Side
 		}
-		state.packetCount++
-		state.payloadSize = len(msg.data.Data)
-		state.lastPacket = msg.data.Data
+		state.state = msg.state
 		state.lastUpdated = msg.at
 		state.closed = false
 		m.sources[msg.source] = state
@@ -159,15 +156,18 @@ func (m joyconViewerModel) renderControllerCard(state joyconCardState, role joyc
 	lines := []string{
 		titleStyle.Render(state.title),
 		fmt.Sprintf("Player: %d", state.playerNo),
-		fmt.Sprintf("Packets: %d", state.packetCount),
-		fmt.Sprintf("Payload: %d bytes", state.payloadSize),
+		fmt.Sprintf("Stick: X=%d Y=%d", state.state.Stick.X, state.state.Stick.Y),
+		fmt.Sprintf("Temp: %.2f C  Voltage: %.2f V", state.state.Temperature, state.state.Voltage),
 		mutedStyle.Render(controllerStatus(state)),
-		"",
-		titleStyle.Render("Latest packet"),
-		renderPacketPreview(state.lastPacket),
 		"",
 		titleStyle.Render("Buttons"),
 		renderButtonPanel(state, role, accent),
+		"",
+		titleStyle.Render("State"),
+		renderStateSummary(state.state),
+		"",
+		titleStyle.Render("Latest packet"),
+		renderPacketPreview(state.state.Raw),
 	}
 
 	return cardStyle.Render(strings.Join(lines, "\n"))
@@ -202,43 +202,19 @@ func forwardJoyconInput(ctx context.Context, program *tea.Program, source joycon
 		select {
 		case <-ctx.Done():
 			return
-		case input, ok := <-source.inputCh:
+		case input, ok := <-source.stateCh:
 			if !ok {
 				program.Send(joyconChannelClosedMsg{source: source.name})
 				return
 			}
 
-			cloned := append([]byte(nil), input.Data...)
-			input.Data = cloned
-
 			program.Send(joyconPacketMsg{
 				source: source.name,
-				data:   input,
+				state:  input,
 				at:     time.Now(),
 			})
 		}
 	}
-}
-
-func renderPacketPreview(packet []byte) string {
-	if len(packet) == 0 {
-		return "(no data yet)"
-	}
-
-	const bytesPerLine = 12
-
-	lines := make([]string, 0, (len(packet)+bytesPerLine-1)/bytesPerLine)
-	for start := 0; start < len(packet); start += bytesPerLine {
-		end := min(len(packet), start+bytesPerLine)
-		encoded := hex.EncodeToString(packet[start:end])
-		chunks := make([]string, 0, (len(encoded)+1)/2)
-		for i := 0; i < len(encoded); i += 2 {
-			chunks = append(chunks, encoded[i:i+2])
-		}
-		lines = append(lines, strings.Join(chunks, " "))
-	}
-
-	return strings.Join(lines, "\n")
 }
 
 func classifyRenderRole(side JoyconSide, total int) joyconRenderRole {
@@ -294,63 +270,63 @@ func renderButtonPanel(state joyconCardState, role joyconRenderRole, accent lipg
 	switch role {
 	case joyconRoleLeft:
 		return renderButtonStrip(accent, state,
-			buttonSpec{label: "L", bit: 0},
-			buttonSpec{label: "ZL", bit: 1},
-			buttonSpec{label: "-", bit: 6},
-			buttonSpec{label: "CAP", bit: 7},
-			buttonSpec{label: "UP", bit: 2},
-			buttonSpec{label: "LT", bit: 3},
-			buttonSpec{label: "DN", bit: 4},
-			buttonSpec{label: "RT", bit: 5},
-			buttonSpec{label: "SL", bit: 8},
-			buttonSpec{label: "STK", bit: 10},
-			buttonSpec{label: "SR", bit: 9},
+			buttonSpec{label: "L", button: ButtonL},
+			buttonSpec{label: "ZL", button: ButtonZL},
+			buttonSpec{label: "-", button: ButtonMinus},
+			buttonSpec{label: "CAP", button: ButtonCapture},
+			buttonSpec{label: "UP", button: ButtonUp},
+			buttonSpec{label: "LT", button: ButtonLeft},
+			buttonSpec{label: "DN", button: ButtonDown},
+			buttonSpec{label: "RT", button: ButtonRight},
+			buttonSpec{label: "SL", button: ButtonSL},
+			buttonSpec{label: "STK", button: ButtonStick},
+			buttonSpec{label: "SR", button: ButtonSR},
 		)
 	case joyconRoleRight:
 		return renderButtonStrip(accent, state,
-			buttonSpec{label: "R", bit: 0},
-			buttonSpec{label: "ZR", bit: 1},
-			buttonSpec{label: "+", bit: 6},
-			buttonSpec{label: "HOME", bit: 7},
-			buttonSpec{label: "X", bit: 2},
-			buttonSpec{label: "Y", bit: 3},
-			buttonSpec{label: "A", bit: 4},
-			buttonSpec{label: "B", bit: 5},
-			buttonSpec{label: "SL", bit: 8},
-			buttonSpec{label: "STK", bit: 10},
-			buttonSpec{label: "SR", bit: 9},
+			buttonSpec{label: "R", button: ButtonR},
+			buttonSpec{label: "ZR", button: ButtonZR},
+			buttonSpec{label: "+", button: ButtonPlus},
+			buttonSpec{label: "HOME", button: ButtonHome},
+			buttonSpec{label: "X", button: ButtonX},
+			buttonSpec{label: "Y", button: ButtonY},
+			buttonSpec{label: "A", button: ButtonA},
+			buttonSpec{label: "B", button: ButtonB},
+			buttonSpec{label: "SL", button: ButtonSL},
+			buttonSpec{label: "STK", button: ButtonStick},
+			buttonSpec{label: "SR", button: ButtonSR},
 		)
 	default:
 		return renderButtonStrip(accent, state,
-			buttonSpec{label: "L", bit: 0},
-			buttonSpec{label: "ZL", bit: 1},
-			buttonSpec{label: "R", bit: 2},
-			buttonSpec{label: "ZR", bit: 3},
-			buttonSpec{label: "UP", bit: 4},
-			buttonSpec{label: "LT", bit: 5},
-			buttonSpec{label: "DN", bit: 6},
-			buttonSpec{label: "RT", bit: 7},
-			buttonSpec{label: "X", bit: 8},
-			buttonSpec{label: "Y", bit: 9},
-			buttonSpec{label: "A", bit: 10},
-			buttonSpec{label: "B", bit: 11},
-			buttonSpec{label: "-", bit: 12},
-			buttonSpec{label: "STK", bit: 13},
-			buttonSpec{label: "+", bit: 14},
-			buttonSpec{label: "HOME", bit: 15},
+			buttonSpec{label: "L", button: ButtonL},
+			buttonSpec{label: "ZL", button: ButtonZL},
+			buttonSpec{label: "R", button: ButtonR},
+			buttonSpec{label: "ZR", button: ButtonZR},
+			buttonSpec{label: "UP", button: ButtonUp},
+			buttonSpec{label: "LT", button: ButtonLeft},
+			buttonSpec{label: "DN", button: ButtonDown},
+			buttonSpec{label: "RT", button: ButtonRight},
+			buttonSpec{label: "X", button: ButtonX},
+			buttonSpec{label: "Y", button: ButtonY},
+			buttonSpec{label: "A", button: ButtonA},
+			buttonSpec{label: "B", button: ButtonB},
+			buttonSpec{label: "-", button: ButtonMinus},
+			buttonSpec{label: "STK", button: ButtonStick},
+			buttonSpec{label: "+", button: ButtonPlus},
+			buttonSpec{label: "HOME", button: ButtonHome},
 		)
 	}
 }
 
 type buttonSpec struct {
-	label string
-	bit   int
+	label  string
+	button Button
 }
 
 func renderButtonStrip(accent lipgloss.Color, state joyconCardState, buttons ...buttonSpec) string {
 	row := make([]string, 0, len(buttons))
 	for _, button := range buttons {
-		row = append(row, buttonChip(button.label, packetBit(state.lastPacket, button.bit), accent))
+		row = append(row, buttonChip(button.label, state.state.Buttons[button.button], accent))
 	}
 	return lipgloss.JoinHorizontal(lipgloss.Center, row...)
 }
@@ -375,13 +351,104 @@ func buttonChip(label string, active bool, accent lipgloss.Color) string {
 	return style.Render(label)
 }
 
-func packetBit(packet []byte, bit int) bool {
-	byteIndex := bit / 8
-	bitIndex := bit % 8
+func renderStateSummary(state JoyconState) string {
+	parts := make([]string, 0, 3)
 
-	if byteIndex < 0 || byteIndex >= len(packet) {
-		return false
+	if pressed := pressedButtons(state.Buttons); len(pressed) > 0 {
+		parts = append(parts, "Pressed: "+strings.Join(pressed, ", "))
+	} else {
+		parts = append(parts, "Pressed: none")
 	}
 
-	return packet[byteIndex]&(1<<bitIndex) != 0
+	parts = append(parts,
+		fmt.Sprintf("Accel: %.2f %.2f %.2f", state.Accel[0], state.Accel[1], state.Accel[2]),
+		fmt.Sprintf("Gyro: %.2f %.2f %.2f", state.Gyro[0], state.Gyro[1], state.Gyro[2]),
+	)
+
+	return strings.Join(parts, "\n")
+}
+
+func renderPacketPreview(packet []byte) string {
+	if len(packet) == 0 {
+		return "(no data yet)"
+	}
+
+	const bytesPerLine = 12
+
+	lines := make([]string, 0, (len(packet)+bytesPerLine-1)/bytesPerLine)
+	for start := 0; start < len(packet); start += bytesPerLine {
+		end := min(len(packet), start+bytesPerLine)
+		encoded := hex.EncodeToString(packet[start:end])
+		chunks := make([]string, 0, (len(encoded)+1)/2)
+		for i := 0; i < len(encoded); i += 2 {
+			chunks = append(chunks, encoded[i:i+2])
+		}
+		lines = append(lines, strings.Join(chunks, " "))
+	}
+
+	return strings.Join(lines, "\n")
+}
+
+func pressedButtons(buttons ButtonState) []string {
+	if len(buttons) == 0 {
+		return nil
+	}
+
+	names := make([]string, 0, len(buttons))
+	for button, pressed := range buttons {
+		if !pressed {
+			continue
+		}
+		names = append(names, buttonLabel(button))
+	}
+
+	sort.Strings(names)
+	return names
+}
+
+func buttonLabel(button Button) string {
+	switch button {
+	case ButtonUp:
+		return "UP"
+	case ButtonDown:
+		return "DOWN"
+	case ButtonLeft:
+		return "LEFT"
+	case ButtonRight:
+		return "RIGHT"
+	case ButtonA:
+		return "A"
+	case ButtonB:
+		return "B"
+	case ButtonX:
+		return "X"
+	case ButtonY:
+		return "Y"
+	case ButtonL:
+		return "L"
+	case ButtonR:
+		return "R"
+	case ButtonZL:
+		return "ZL"
+	case ButtonZR:
+		return "ZR"
+	case ButtonSL:
+		return "SL"
+	case ButtonSR:
+		return "SR"
+	case ButtonPlus:
+		return "+"
+	case ButtonMinus:
+		return "-"
+	case ButtonHome:
+		return "HOME"
+	case ButtonCapture:
+		return "CAPTURE"
+	case ButtonStick:
+		return "STICK"
+	case ButtonGameChat:
+		return "CHAT"
+	default:
+		return "UNKNOWN"
+	}
 }

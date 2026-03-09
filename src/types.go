@@ -35,8 +35,8 @@ const (
 )
 
 type StickInput struct {
-	X float64
-	Y float64
+	X int16
+	Y int16
 }
 
 type InputData struct {
@@ -48,10 +48,15 @@ type InputData struct {
 type ButtonState map[Button]bool
 
 type JoyconState struct {
-	PlayerNo int
-	Side     JoyconSide
-	Stick    StickInput
-	Buttons  ButtonState
+	PlayerNo    int
+	Side        JoyconSide
+	Raw         []byte
+	Stick       StickInput
+	Buttons     ButtonState
+	Temperature float64
+	Accel       [3]float64 // X Y Z
+	Gyro        [3]float64
+	Voltage     float64
 }
 
 var State JoyconState
