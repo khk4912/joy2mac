@@ -155,9 +155,7 @@ func (m joyconViewerModel) renderControllerCard(state joyconCardState, role joyc
 
 	lines := []string{
 		titleStyle.Render(state.title),
-		fmt.Sprintf("Player: %d", state.playerNo),
-		fmt.Sprintf("Stick: X=%d Y=%d", state.state.Stick.X, state.state.Stick.Y),
-		fmt.Sprintf("Temp: %.2f C  Voltage: %.2f V", state.state.Temperature, state.state.Voltage),
+		mutedStyle.Render(fmt.Sprintf("Player: %d", state.playerNo)),
 		mutedStyle.Render(controllerStatus(state)),
 		"",
 		titleStyle.Render("Buttons"),
@@ -352,20 +350,40 @@ func buttonChip(label string, active bool, accent lipgloss.Color) string {
 }
 
 func renderStateSummary(state JoyconState) string {
-	parts := make([]string, 0, 3)
+	lines := []string{
+		renderMetricRow("Temp",
+			fmt.Sprintf("%5.2f C", state.Temperature),
+		),
+		renderMetricRow("Volt",
+			fmt.Sprintf("%5.2f V", state.Voltage),
+		),
 
-	if pressed := pressedButtons(state.Buttons); len(pressed) > 0 {
-		parts = append(parts, "Pressed: "+strings.Join(pressed, ", "))
-	} else {
-		parts = append(parts, "Pressed: none")
+		renderMetricRow("Stick",
+			fmt.Sprintf("X:%6d", state.Stick.X),
+			fmt.Sprintf("Y:%6d", state.Stick.Y),
+		),
+
+		renderMetricRow("Gyro",
+			fmt.Sprintf("X:%6.2f", state.Gyro[0]),
+			fmt.Sprintf("Y:%6.2f", state.Gyro[1]),
+			fmt.Sprintf("Z:%6.2f deg/s", state.Gyro[2]),
+		),
+		renderMetricRow("Accel",
+			fmt.Sprintf("X:%6.2f", state.Accel[0]),
+			fmt.Sprintf("Y:%6.2f", state.Accel[1]),
+			fmt.Sprintf("Z:%6.2f G", state.Accel[2]),
+		),
 	}
+	return strings.Join(lines, "\n")
+}
 
-	parts = append(parts,
-		fmt.Sprintf("Accel: %.2f %.2f %.2f", state.Accel[0], state.Accel[1], state.Accel[2]),
-		fmt.Sprintf("Gyro: %.2f %.2f %.2f", state.Gyro[0], state.Gyro[1], state.Gyro[2]),
-	)
+func renderMetricRow(label string, values ...string) string {
+	labelStyle := lipgloss.NewStyle().
+		Width(6).
+		Bold(true).
+		Foreground(lipgloss.Color("243"))
 
-	return strings.Join(parts, "\n")
+	return labelStyle.Render(label) + " " + strings.Join(values, "  ")
 }
 
 func renderPacketPreview(packet []byte) string {
