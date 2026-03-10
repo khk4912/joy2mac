@@ -1,6 +1,6 @@
 # Joy2Mac
 
-![Joy2Mac Tui Image](https://github.com/user-attachments/assets/f3d45a58-380d-462f-90c9-bdd43e6eecaf)
+<img width="1134" height="442" alt="Joy2Mac Tui Image" src="https://github.com/user-attachments/assets/20dbe9af-e615-469c-a935-64a2bacf2627" />
 
 ## Usage
 
