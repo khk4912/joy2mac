@@ -17,3 +17,7 @@ It would have been impossible to create this project without the help of the fol
 
 - [joycon2py](https://github.com/TheFrano/joycon2py)
 - [joycon2mac](https://github.com/loyahdev/joycon2mac)
+
+## Disclaimer
+
+Joy-Con and Nintendo Switch are trademarks of Nintendo. This project is an unofficial, independent tool and is not affiliated with or endorsed by Nintendo.
