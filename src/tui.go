@@ -375,6 +375,11 @@ func renderStateSummary(state JoyconState) string {
 			fmt.Sprintf("Y:%6.2f", state.Accel[1]),
 			fmt.Sprintf("Z:%6.2f G", state.Accel[2]),
 		),
+		renderMetricRow("Mouse",
+			fmt.Sprintf("X:%6d", state.Mouse.MouseX),
+			fmt.Sprintf("Y:%6d", state.Mouse.MouseY),
+			fmt.Sprintf("D:%6d", state.Mouse.Distance),
+		),
 	}
 	return strings.Join(lines, "\n")
 }

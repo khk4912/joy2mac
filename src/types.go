@@ -58,6 +58,13 @@ type JoyconState struct {
 	Gyro        [3]float64
 	Voltage     float64
 	Ampere      float64
+	Mouse       MouseInput
+}
+
+type MouseInput struct {
+	MouseX   int16
+	MouseY   int16
+	Distance int16
 }
 
 var State JoyconState

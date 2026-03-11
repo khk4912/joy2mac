@@ -2,6 +2,7 @@ package joy2mac
 
 import (
 	"encoding/binary"
+	"fmt"
 )
 
 func parseInputData(joyconInputch <-chan InputData) <-chan JoyconState {
@@ -22,6 +23,7 @@ func parseInputData(joyconInputch <-chan InputData) <-chan JoyconState {
 				Gyro:        parseGyro(raw),
 				Voltage:     parseVoltage(raw),
 				Ampere:      parseAmpere(raw),
+				Mouse:       parseMouse(raw),
 			}
 
 			switch state.Side {
@@ -182,5 +184,31 @@ func parseRightStick(data []byte) StickInput {
 	return StickInput{
 		X: int16(rawNum & 0xFFF),
 		Y: int16((rawNum >> 12) & 0xFFF),
+	}
+}
+
+func parseMouse(data []byte) MouseInput {
+	if len(data) < 0x18 {
+		return MouseInput{}
+	}
+
+	rawMouseX := read(data, 0x10, 2)
+	rawMouseY := read(data, 0x12, 2)
+	rawDistance := read(data, 0x16, 2)
+
+	if rawMouseX == nil || rawMouseY == nil || rawDistance == nil {
+		return MouseInput{}
+	}
+
+	fmt.Printf("raw mouse: %02x %02x %02x %02x\n", rawMouseX[0], rawMouseX[1], rawMouseY[0], rawMouseY[1])
+
+	rawX := int16(binary.LittleEndian.Uint16(rawMouseX))
+	rawY := int16(binary.LittleEndian.Uint16(rawMouseY))
+	rawDist := int16(binary.LittleEndian.Uint16(rawDistance))
+
+	return MouseInput{
+		MouseX:   rawX,
+		MouseY:   rawY,
+		Distance: rawDist,
 	}
 }
